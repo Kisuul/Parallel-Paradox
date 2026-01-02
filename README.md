@@ -1,6 +1,8 @@
 # Parallel-Paradox
 It is a game.right???
 
+See [docs/Parallel-Paradox-Design.md](docs/Parallel-Paradox-Design.md) for the canonical design overview, principles, and swarm/forgiveness architecture links.
+
 
 ~~~
 
