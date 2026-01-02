@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PhaseCube Delta — Lens-Modulated Tri-Swarm (F6N2Q4)</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; background: #04060c; color: #e6e6e6; font-family: "Inter", system-ui, sans-serif; display: grid; grid-template-columns: 1fr 320px; height: 100vh; }
+    #viewport { width: 100%; height: 100%; display: block; background: #04060c; }
+    #sidebar { padding: 16px; border-left: 1px solid #182033; display: flex; flex-direction: column; gap: 14px; }
+    h1 { margin: 0; font-size: 16px; letter-spacing: 0.04em; }
+    p { margin: 0; color: #9bb0c5; font-size: 13px; }
+    label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #c7d5e0; }
+    input[type="range"] { width: 100%; }
+    button { padding: 8px 12px; background: #1f3c57; color: #e6f1ff; border: 1px solid #22486a; border-radius: 6px; cursor: pointer; }
+    button:hover { background: #275072; }
+    select { padding: 6px; background: #0c1220; color: #e6e6e6; border: 1px solid #2c3f62; border-radius: 4px; }
+    .badge { display: inline-block; background: #143754; color: #e6f1ff; padding: 4px 8px; border-radius: 6px; font-size: 11px; }
+    .hint { font-size: 12px; color: #7f8fa4; }
+    #controls { display: flex; flex-direction: column; gap: 10px; }
+    #status { font-size: 12px; color: #b3c5d1; }
+  </style>
+</head>
+<body>
+  <canvas id="viewport"></canvas>
+  <aside id="sidebar">
+    <div>
+      <div class="badge">Delta F6N2Q4</div>
+      <h1>Lens-Modulated Tri-Swarm</h1>
+      <p>Iterating the PhaseCube upgrade path with three-way dialogue, delay-fed bias pulses, and lens-inspired modulators. Mouse move to orbit. Space to pause.</p>
+    </div>
+    <div id="controls"></div>
+    <div id="lens-display" class="hint"></div>
+    <div id="status"></div>
+    <div class="hint">Pulse input simulates audio/impulse influence. TODO: Thing, for reason(s) — wire microphone/file bias into the pulse injector without overwriting internal state.</div>
+  </aside>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
