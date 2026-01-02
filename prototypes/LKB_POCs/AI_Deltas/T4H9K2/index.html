@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="PhaseCube lens scheduler + echo bias (DeltaID: T4H9K2)." />
+  <title>PhaseCube Lens Scheduler (T4H9K2)</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #050505;
+      --panel: rgba(12, 12, 16, 0.92);
+      --accent: #7fe07f;
+      --text: #e8f5e9;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, sans-serif; }
+    body { display: grid; grid-template-rows: auto 1fr auto; }
+    header, footer { padding: 0.75rem 1rem; text-align: center; background: rgba(0,0,0,0.35); backdrop-filter: blur(6px); }
+    main { position: relative; }
+    canvas { width: 100%; height: calc(100vh - 140px); display: block; }
+    .panel { position: absolute; top: 10px; left: 10px; padding: 12px; background: var(--panel); border-radius: 10px; border: 1px solid #1c1c26; box-shadow: 0 0 12px rgba(0,0,0,0.35); width: min(520px, 94vw); }
+    .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+    button, select, input[type=range] { background: #0f1510; color: var(--accent); border: 1px solid #283428; border-radius: 6px; padding: 6px 10px; font: inherit; cursor: pointer; }
+    button.primary { background: #153215; color: #c3f7c3; border-color: #2d6f2d; }
+    label { font-size: 13px; color: #cdddcf; }
+    small { color: #9fb19d; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>PhaseCube — Lens Scheduler + Echo Bias <small>(DeltaID: T4H9K2)</small></h1>
+  </header>
+  <main>
+    <canvas id="render"></canvas>
+    <div class="panel" id="ui">
+      <div class="row" aria-label="mode toggles">
+        <button id="liveBtn" class="primary">Start Live Audio</button>
+        <button id="pulseBtn">Synthetic Pulse</button>
+        <button id="idleBtn">Idle Dream</button>
+        <button id="pauseBtn">Pause</button>
+        <button id="saveBtn">Save PNG</button>
+      </div>
+      <div class="row" aria-label="lens weights">
+        <label for="lensPreset">Lens preset</label>
+        <select id="lensPreset">
+          <option value="balanced">Balanced</option>
+          <option value="human">Human</option>
+          <option value="predictive">Predictive</option>
+          <option value="systemic">Systemic</option>
+          <option value="harmonic">Harmonic</option>
+        </select>
+        <label><input type="checkbox" id="lensAuto" checked> Autopilot cycle</label>
+        <small id="lensStatus">Auto: balanced → human → predictive → systemic → harmonic</small>
+      </div>
+      <div class="row" aria-label="tunables">
+        <label>Flip</label><input type="range" id="flip" min="0.001" max="0.05" step="0.001">
+        <label>Parity</label><input type="range" id="parity" min="0.001" max="0.03" step="0.001">
+        <label>Forgiveness</label><input type="range" id="forgive" min="0" max="1" step="0.05">
+        <label>Alpha</label><input type="range" id="alpha" min="0.05" max="0.35" step="0.01">
+      </div>
+      <div class="row" aria-label="echo and gain">
+        <label>Memory echo</label><input type="range" id="memory" min="0" max="0.8" step="0.02">
+        <label>Input gain</label><input type="range" id="gain" min="0.3" max="2.5" step="0.05">
+        <small>Echo blends recent bias; gain scales ingestion.</small>
+      </div>
+      <div class="row" aria-label="status">
+        <small id="status">Idle.</small>
+      </div>
+    </div>
+  </main>
+  <footer>
+    <p>Lens autopilot + echo bias for Lyriel/Kairi tuning. Drag to rotate; P to pause; S to save. TODO: Add GPU path + file audio.</p>
+  </footer>
+
+  <script type="module">
+    import { config, lensPresets, applyLensPreset, deltaId } from './src/config.js';
+    import { createRenderer } from './src/core/render.js';
+    import { PhaseGrid } from './src/core/phaseGrid.js';
+    import { InputField } from './src/core/inputField.js';
+    import { createAudioDriver } from './src/core/audio.js';
+    import { createController } from './src/core/controller.js';
+    import { createLensScheduler } from './src/core/lensScheduler.js';
+    import { MemoryField } from './src/core/memoryField.js';
+
+    // Wiring orchestrator. Keeping glue code small makes future swaps easy.
+    const canvas = document.getElementById('render');
+    const renderer = createRenderer(canvas, config);
+    const grid = new PhaseGrid(config);
+    const inputField = new InputField(config);
+    const audio = createAudioDriver(config);
+    const lensScheduler = createLensScheduler(config);
+    const memoryField = new MemoryField(config);
+    const controller = createController({ renderer, grid, inputField, audio, config, lensScheduler, memoryField });
+
+    // UI bindings
+    const status = document.getElementById('status');
+    const lensStatus = document.getElementById('lensStatus');
+    const lensAuto = document.getElementById('lensAuto');
+    const updateLensStatus = () => {
+      const state = lensScheduler.state;
+      lensStatus.textContent = `${state.autopilot ? 'Auto' : 'Manual'} lens: ${state.target}`;
+    };
+
+    const bindRange = (id, key) => {
+      const el = document.getElementById(id);
+      el.value = config[key];
+      el.addEventListener('input', () => {
+        config[key] = parseFloat(el.value);
+        status.textContent = `Set ${key} = ${config[key].toFixed(3)}`;
+      });
+    };
+    bindRange('flip', 'FLIP_P');
+    bindRange('parity', 'PARITY_P');
+    // Keep forgiveness slider tied to both config and lens weights for immediacy.
+    const forgive = document.getElementById('forgive');
+    forgive.value = config.FORGIVENESS;
+    forgive.addEventListener('input', () => {
+      const val = parseFloat(forgive.value);
+      config.FORGIVENESS = val;
+      lensScheduler.state.weights.forgiveness = val;
+      status.textContent = `Forgiveness = ${val.toFixed(3)}`;
+    });
+    bindRange('alpha', 'ALPHA');
+
+    document.getElementById('lensPreset').addEventListener('change', (e) => {
+      const preset = lensPresets[e.target.value];
+      applyLensPreset(config, preset);
+      controller.setPreset(e.target.value);
+      controller.setAutopilot(false);
+      lensAuto.checked = false;
+      status.textContent = `Applied ${e.target.value} lens weights (manual).`;
+      updateLensStatus();
+    });
+
+    lensAuto.addEventListener('change', () => {
+      controller.setAutopilot(lensAuto.checked);
+      status.textContent = lensAuto.checked ? 'Lens autopilot cycling.' : 'Lens autopilot off (manual).';
+      updateLensStatus();
+    });
+
+    const memory = document.getElementById('memory');
+    memory.value = config.MEMORY_ECHO_WEIGHT;
+    memory.addEventListener('input', () => {
+      const val = parseFloat(memory.value);
+      controller.setMemoryWeight(val);
+      status.textContent = `Memory echo = ${val.toFixed(2)}`;
+    });
+
+    const gain = document.getElementById('gain');
+    gain.value = config.BIAS_GAIN;
+    gain.addEventListener('input', () => {
+      const val = parseFloat(gain.value);
+      controller.setGain(val);
+      status.textContent = `Input gain = ${val.toFixed(2)}`;
+    });
+
+    document.getElementById('pauseBtn').addEventListener('click', () => {
+      controller.togglePause();
+      status.textContent = controller.state.paused ? 'Paused.' : 'Running.';
+    });
+
+    document.getElementById('saveBtn').addEventListener('click', () => renderer.savePNG('phasecube_harmonic.png'));
+
+    document.getElementById('liveBtn').addEventListener('click', async () => {
+      status.textContent = 'Requesting mic...';
+      await controller.switchDriver('live');
+      status.textContent = 'Live audio engaged.';
+    });
+
+    document.getElementById('pulseBtn').addEventListener('click', async () => {
+      await controller.switchDriver('pulse');
+      status.textContent = 'Synthetic pulse driver running.';
+      updateLensStatus();
+    });
+
+    document.getElementById('idleBtn').addEventListener('click', async () => {
+      await controller.switchDriver('idle');
+      status.textContent = 'Idle dream mode (internal noise only).';
+    });
+
+    // Keyboard shortcuts for ergonomics
+    window.addEventListener('keydown', (e) => {
+      if (e.key.toLowerCase() === 'p') document.getElementById('pauseBtn').click();
+      if (e.key.toLowerCase() === 's') document.getElementById('saveBtn').click();
+    });
+
+    status.textContent = `DeltaID ${deltaId} loaded. Autopilot cycling lenses.`;
+    updateLensStatus();
+    setInterval(updateLensStatus, 800);
+    controller.start();
+  </script>
+</body>
+</html>
